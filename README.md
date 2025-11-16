@@ -1,238 +1,139 @@
-# **Python Pipeline for Differential Methylation Analysis**
 
-This document outlines a bioinformatics pipeline in Python for identifying Differentially Methylated Regions (DMRs) from clustered bisulfite sequencing data. The core of the analysis is a **Pearson's chi-square ($X^2$) test** performed on genomic windows to find regions with significant methylation variance between cell clusters.
+# Ecker DMR Analysis Scripts
 
------
+**Repository for the processing scripts and workflows used in**  
+**“<Paper Title Here>”**  
+_Ecker et al._, _Journal Name_, Year — DOI: <doi_link>
 
-## **1. Setup: Import Libraries**
+---
 
-First, we import the necessary Python libraries for data manipulation, numerical operations, statistical calculations, and plotting.
+## 🎯 Overview  
+This repository contains all scripts, notebooks, and documentation required to reproduce the differential methylation region (DMR) analysis described in the above publication. The workflows start from `.allc.tsv.gz` input files (methylation calls) and proceed through genotype/cluster parsing, merging, filtering, and downstream analyses.
 
-```python
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-from scipy.special import logit, expit
-from scipy.stats import chi2
-from joblib import Parallel, delayed
+---
+
+## 📁 Repository Structure  
+```plaintext
+.
+├── config/           Metadata and sample-definition files
+├── scripts/          Analysis workflows (shell & Python)
+├── notebooks/        Jupyter notebooks for analysis, visualization & figures
+├── docs/             Usage guide, input/output format documentation
+├── results/          Output tables and figures (key results)
+├── environment.yml   Conda environment (or requirements.txt)
+├── LICENSE           MIT or other open source license
+├── CITATION.cff      Citation metadata for this repository
+└── README.md         (this file)
+````
+
+---
+
+## 🚀 Quick Start
+
+### Clone the repository
+
+```bash
+git clone https://github.com/kqu18/ecker-DMR-analysis-scripts.git
+cd ecker-DMR-analysis-scripts
 ```
 
------
+### Install dependencies
 
-## **2. Data Loading and Preprocessing**
-
-This section covers loading the annotated methylation data and performing an initial cleaning step.
-
-### **Load Annotated Methylation Data**
-
-The data is loaded from a tab-separated file into a pandas **DataFrame**. Each row represents a specific genomic location within a cell cluster.
-
-  - **`c`**: Number of methylated reads (Cytosines).
-  - **`t`**: Number of unmethylated reads (Thymines).
-  - **`score`**: Methylation ratio ($c / (c+t)$).
-  - **`cluster`**: The cell cluster ID.
-
-<!-- end list -->
-
-```python
-# Load the dataset from a TSV file
-df = pd.read_csv('../data/annotated_filtered_col.CG_2.fast.tsv', sep='\t')
+```bash
+conda env create -f environment.yml
+conda activate ecker_dmr
 ```
 
-### **Quality Control (QC)**
+*or*
 
-We filter the data by removing any rows that have a `NaN` value in the `score_masked` column. This step ensures that we only work with high-quality data points that have passed previous filtering stages.
-
-```python
-# Drop rows where 'score_masked' is NaN
-df = df.dropna(subset=['score_masked'])
+```bash
+pip install -r requirements.txt
 ```
 
------
+### Run the workflows
 
-## **3. Statistical Modeling and Functions**
+1. Ensure your `.allc.tsv.gz` input files are listed in the `config/samplesheet.csv`.
+2. Execute the core parsing script:
 
-Here we define the core functions for our statistical analysis. The main goal is to calculate a chi-square statistic for each genomic window to test for differential methylation.
+   ```bash
+   bash scripts/parse_allc_by_genotype.sh --input allc_folder --output parsed_folder
+   ```
+3. Proceed through merging and analysis as described.
+4. Open `notebooks/02_analysis.ipynb` to reproduce figure panels and result tables.
 
-### **Calculate Global Cluster Offsets (`fit_offsets`)**
+---
 
-This function calculates a global, baseline methylation level for each cell **cluster**. By aggregating counts across the entire genome, we can determine each cluster's typical methylation propensity. These "offsets" are calculated in logit space and are used to establish the null hypothesis for our statistical test.
+## 📊 Reproducibility & Output
 
-```python
-def fit_offsets(df_all):
-    """Calculates global methylation offsets for each cluster."""
-    # Aggregate methylated (c) and unmethylated (t) counts for each cluster
-    agg = df_all.groupby('cluster')[['c','t']].sum()
-    M = agg.sum(axis=1)
-    p = agg['c'] / M
+* Example input (`data/example_allc.tsv.gz`) and output (`results/example_output.tsv`) are included for verification.
+* The paper uses version tag `v1.0-paper` of this repository — see Releases.
+* All major dependencies and system requirements are documented in `environment.yml`.
+* The data processing and analysis workflow is fully described in `docs/usage_manual.md`.
 
-    # Convert to logit space and center the offsets
-    d = logit(np.clip(p, 1e-6, 1-1e-6))
-    return d - np.average(d, weights=M)
+---
+
+## 📜 Citation
+
+Please cite the article when using these scripts:
+
+```
+Ecker, A. B., et al. (Year). <Paper Title>. _Journal Name_. DOI: <doi_link>
 ```
 
-### **Calculate Window-wise Statistics (`window_stats`)**
+You may also cite this repository:
 
-This function iterates through each unique genomic window (defined by `chr`, `start`, `end`) and performs the chi-square test.
-
-The key steps for each window are:
-
-1.  **Filter Clusters**: Remove clusters with low coverage (fewer than 5 reads).
-2.  **Establish Null Hypothesis ($p_0$)**: Calculate the expected methylation level for each cluster in the window. This is done by taking the window's overall methylation average and adjusting it by each cluster's global offset (`deltas`).
-3.  **Calculate $X^2$ Statistic**: A Pearson's chi-square statistic is calculated to compare the *observed* methylated counts (`c`) to the *expected* counts under the null hypothesis (`E = m * p0`).
-4.  **Calculate P-value**: The $X^2$ value is used to calculate a p-value, which is adjusted for overdispersion using a calculated `phi` factor.
-
-<!-- end list -->
-
-```python
-def window_stats(df_all, deltas, tau=20.0, eps=1e-6):
-    """Computes chi-square statistics for each genomic window."""
-    out = []
-    for (chr_, start, end), g in df_all.groupby(['chr','start','end']):
-        c = g['c'].to_numpy(); t = g['t'].to_numpy(); m = c + t
-        k = g['cluster'].to_numpy()
-
-        # Keep clusters with sufficient coverage (>= 5 reads)
-        keep = m >= 5
-        if keep.sum() < 2:
-            continue
-        c, m, k = c[keep], m[keep], k[keep]
-
-        # Calculate the expected methylation rate (p0) under the null hypothesis
-        pbar = c.sum() / m.sum()
-        p0 = expit(logit(np.clip(pbar, 1e-6, 1-1e-6)) + deltas.loc[k].to_numpy())
-
-        # Pearson X^2 with binomial variance, epsilon-stabilized
-        E = m * p0
-        Var = m * p0 * (1 - p0) + eps
-        X2 = ((c - E)**2 / Var).sum()
-        dfree = len(c) - 1
-
-        # Calculate max deviation and identify high/low clusters
-        p_hat = c / m
-        dev = np.abs(p_hat - p0)
-        dmax = float(dev.max() - dev.min())
-        hi = int(k[p0.argmax()])
-        lo = int(k[p0.argmin()])
-
-        out.append((chr_, start, end, X2, m.sum(), dfree, dmax, hi, lo))
-
-    res = pd.DataFrame(out, columns=['chr','start','end','X2', '∑m', 'df','delta_max','hi_cluster','lo_cluster'])
-
-    # Correct for overdispersion using a global phi factor
-    phi = np.median(res['X2'] / np.maximum(res['df'], 1)) if len(res) else 1.0
-    res['pval'] = 1 - chi2.cdf(res['X2'] / max(phi, 1e-6), res['df'])
-    res['phi'] = phi
-    return res
+```
+@misc{ecker_dmr_scripts,
+  author       = {A. B. Ecker and colleagues},
+  title        = {Ecker DMR Analysis Scripts},
+  year         = 2025,
+  publisher    = {GitHub},
+  howpublished = {\url{https://github.com/kqu18/ecker-DMR-analysis-scripts}},
+  note         = {Version used for publication}
+}
 ```
 
-### **Multiple Hypothesis Correction (`bh_fdr`)**
+---
 
-Since we are performing thousands of tests (one for each genomic window), we must correct for multiple hypotheses. This function implements the **Benjamini-Hochberg procedure** to control the False Discovery Rate (FDR) and calculate q-values.
+## 🧑‍💻 License
 
-```python
-def bh_fdr(p):
-    """Benjamini-Hochberg False Discovery Rate correction."""
-    if len(p) == 0:
-        return p
-    r = np.argsort(p)
-    ranks = np.empty_like(r); ranks[r] = np.arange(1, len(p) + 1)
-    q = p * len(p) / np.maximum(ranks, 1)
-    q_sorted = np.minimum.accumulate(np.sort(q)[::-1])[::-1]
-    out = np.empty_like(q_sorted); out[r] = q_sorted
-    return np.clip(out, 0, 1)
+This repository is licensed under the [MIT License](LICENSE) (or whatever you choose) — see LICENSE file for details.
+
+---
+
+## ✅ Code Availability
+
+This work conforms to the Springer Nature code policy: new code essential to the conclusions is publicly available via a permanent DOI and an open-source license. ([Springer Nature][2])
+
+---
+
+## 📬 Contact
+
+For questions or issues, please open a GitHub Issue or contact the corresponding author at *[your.email@institution.edu](mailto:your.email@institution.edu)*.
+
 ```
 
------
+---
 
-## **4. Running the Analysis Pipeline**
+## 🔍 Additional Professional Enhancements  
+Here are extra touches that elevate professionalism:
 
-Now, we execute the functions in order to produce the final statistics table.
+1. **Add badges** at top of README: e.g., build status (GitHub Actions), DOI badge (from Zenodo), license badge, Python-version badge.  
+2. **GitHub Releases**: Create a release (e.g., “v1.0 – Published version”) with links to Zenodo DOI, release notes for that version.  
+3. **Documentation website** (optional): Use GitHub Pages or [Read the Docs] for hosting docs (`docs/usage_manual.md`) for easier browsing.  
+4. **Continuous Integration (CI)**: Add a minimal CI workflow (GitHub Actions) that checks that scripts run on the example dataset, or that notebooks execute without error. This enhances reproducibility credibility.  
+5. **Zenodo DOI**: Link the GitHub repo to Zenodo so you get a persistent DOI for the version used in the paper (required by Nature’s code policy). :contentReference[oaicite:3]{index=3}  
+6. **Code Availability Statement**: In your manuscript’s “Code Availability” section, specify the DOI and link to this repository, license, and any access restrictions.  
+7. **Clear versioning**: Tag the tag used in the paper (e.g., `v1.0-paper`) and mention it in README & CITATION.  
+8. **Minimal example dataset**: Provide a small representative dataset so that someone can run the full pipeline end-to-end in a few minutes.  
+9. **Explicit command run-sheet**: In README or docs, include exact commands (with file paths) used to generate key figures/tables in the paper. This aligns with “Tips for Publishing Research Code” checklist. :contentReference[oaicite:4]{index=4}  
+10. **Licensing**: Use an OSI-approved license (MIT, BSD, Apache) so it satisfies journal policy. :contentReference[oaicite:5]{index=5}
 
-```python
-# 1. Calculate global cluster offsets from the entire dataset
-deltas = fit_offsets(df)
+---
 
-# 2. Compute window-by-window statistics
-stats = window_stats(df, deltas, tau=20.0)
-
-# 3. Apply FDR correction to get q-values
-stats['qval'] = bh_fdr(stats['pval'].to_numpy())
+If you like, I can **generate the actual `environment.yml`**, **CI workflow (GitHub Actions YAML)**, and **CITATION.cff** file for you to drop into the repo. Would you like me to do that now?
+::contentReference[oaicite:6]{index=6}
 ```
 
-The resulting `stats` DataFrame contains the test results for each genomic window, including the $X^2$ statistic, p-value, and q-value.
-
------
-
-## **5. Results and Visualization**
-
-A simple way to explore the results is to visualize the distribution of the effect size, `delta_max`. This value represents the maximum difference in methylation deviation within a window, giving an idea of how strong the differential methylation is.
-
-```python
-# Plot a histogram of the maximum methylation deviation (delta_max)
-plt.hist(stats['delta_max'], bins=100)
-plt.xlabel("Delta Max")
-plt.ylabel("Frequency")
-plt.title("Distribution of Maximum Methylation Deviation per Window")
-plt.show()
-```
-
------
-
-## **6. Saving Results**
-
-Finally, the resulting statistics table is saved to a CSV file for further analysis, filtering, and visualization.
-
-```python
-# Save the final statistics table to a CSV file
-stats.to_csv("../data/x2_CG_stat_all_std.csv", index=False)
-```
-
------
-
-## **Appendix: Parallel Processing**
-
-For very large datasets, the window statistics calculation can be parallelized to improve performance. The function below uses `joblib` to distribute the computation across multiple CPU cores.
-
-*Note: The notebook showed this parallel version was interrupted, suggesting the single-threaded `window_stats` function was used for the final run. However, this parallel implementation is a useful alternative for performance optimization.*
-
-```python
-def compute_window_stats(chr_, start, end, g, deltas, a0, b0, eps):
-    """Helper function for a single window (for parallel execution)."""
-    c = g['c'].to_numpy(); t = g['t'].to_numpy(); m = c + t
-    k = g['cluster'].to_numpy()
-    keep = m >= 5
-    if keep.sum() < 2:
-        return None
-    c, m, k = c[keep], m[keep], k[keep]
-    p_hat = c / m
-    pbar = c.sum() / m.sum()
-    p0 = expit(logit(np.clip(pbar, 1e-6, 1-1e-6)) + deltas.loc[k].to_numpy())
-    dev = np.abs(p_hat - p0)
-    E = m * p0
-    Var = m * p0 * (1 - p0) + eps
-    X2 = ((c - E)**2 / Var).sum()
-    dfree = len(c) - 1
-    dmax = float(dev.max() - dev.min())
-    hi = int(k[p0.argmax()])
-    lo = int(k[p0.argmin()])
-    return (chr_, start, end, X2, m.sum(), dfree, dmax, hi, lo)
-
-def window_stats_parallel(df_all, deltas, tau=20.0, eps=1e-6, n_jobs=8):
-    """Computes chi-square statistics in parallel."""
-    agg = df_all.groupby('cluster')[['c','t']].sum()
-    mu = agg['c'].sum() / agg.sum(axis=1).sum()
-    a0, b0 = mu * tau, (1 - mu) * tau
-
-    results = Parallel(n_jobs=n_jobs, prefer="threads")(
-        delayed(compute_window_stats)(chr_, start, end, g, deltas, a0, b0, eps)
-        for (chr_, start, end), g in df_all.groupby(['chr','start','end'])
-    )
-
-    out = [r for r in results if r is not None]
-    res = pd.DataFrame(out, columns=['chr','start','end','X2','∑m','df','delta_max','hi_cluster','lo_cluster'])
-    phi = np.median(res['X2'] / np.maximum(res['df'], 1)) if len(res) else 1.0
-    res['pval'] = 1 - chi2.cdf(res['X2'] / max(phi, 1e-6), res['df'])
-    res['phi'] = phi
-    return res
-```
+[1]: https://github.com/paperswithcode/releasing-research-code?utm_source=chatgpt.com "Tips for Publishing Research Code - GitHub"
+[2]: https://www.springernature.com/gp/open-science/code-policy?utm_source=chatgpt.com "Code Policy | Open science | Springer Nature"
