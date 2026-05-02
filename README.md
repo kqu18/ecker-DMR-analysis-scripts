@@ -21,7 +21,7 @@ Downstream analysis repository for the single-nucleus multi-omic atlas of *Arabi
 
 ### The study
 
-> Walker J, Zhang Y, Qu K, Sun Z, Bartlett A, Castanon R, Garza R, Nery J, Sun E, Li H, Lee A, Gopi Krishna K, Yao G, Mone K, Ostadan L, Ecker JR. "A ploidy-resolved single-nucleus atlas reveals linked layers of epigenomic remodelling in *Arabidopsis* leaves." *Manuscript in preparation.*
+> Walker J, Zhang Y, Qu K, Sun Z, Bartlett A, Castanon R, Garza R, Nery J, Sun E, Li H, Lee A, Gopi Krishna K, Yao G, Mone K, Ostadan L, Ecker JR. "A ploidy-resolved single-nucleus atlas reveals linked layers of epigenomic remodelling in *Arabidopsis* leaves." The Salk Institute for Biological Studies, La Jolla, CA, USA. *Manuscript in preparation.*
 
 This repository supports analysis from that study — a ploidy-resolved single-nucleus atlas of *Arabidopsis* rosette leaves generated using **snmCT-seq**. Nuclei from 21-day-old rosettes were flow-sorted by ploidy (2C–16C) and profiled for both DNA methylation and RNA expression, producing an atlas of 17 annotated cell types spanning mesophyll, epidermis, vasculature, guard cells, phloem, and cell-cycle states.
 
