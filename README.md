@@ -34,6 +34,20 @@ This repository supports analysis from a ploidy-resolved single-nucleus atlas of
 
 ---
 
+## Correlation Analysis Method
+
+The core algorithm — applied at both the gene level and the DMW level — identifies genomic loci where CG methylation and RNA expression are negatively correlated across cell type clusters. The method has two design choices that distinguish it from a naive Pearson/Spearman approach:
+
+**Step 1 — Cluster-level logit deconfounding.**
+Raw methylation fractions are aggregated per cluster (summing methylated reads `mc` and total coverage `cov`). A global per-cluster offset `δ_k` is estimated by fitting logit-transformed bulk methylation to a grand mean, then subtracted from each observation. This removes differences in baseline methylation level between cell types (e.g. guard cells being globally more methylated than phloem), so that the subsequent correlation reflects *relative* changes within each locus rather than absolute methylation level.
+
+**Step 2 — Coverage-weighted least squares (WLS) regression.**
+For each gene or DMW, expression z-scores are regressed on methylation residual z-scores using WLS, with per-cluster aggregate coverage as weights. This down-weights clusters where the methylation estimate is based on few reads — a critical correction for single-cell data where coverage is highly variable across clusters and loci. The regression slope serves as a pseudo-correlation coefficient (ρ); p-values are BH FDR-corrected across all tested loci.
+
+For DMWs specifically, window coordinates are first mapped to overlapping gene bodies using `bioframe.overlap()`, then the same WLS pipeline runs on the matched methylation–expression pairs.
+
+---
+
 ## Repository Structure
 
 ```
