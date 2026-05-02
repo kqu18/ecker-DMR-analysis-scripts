@@ -5,7 +5,7 @@ DMW_BED="/ceph/MethDev/pbio/andy/JW/section_4/data/chunks/chunks_CG_minfilt.fixe
 GBM_BED="/ceph/MethDev/pbio/andy/JW/section_4/data/chunks/chunks_CG_regular_minfilt.fixed.bed"
 
 # Note: generate-dataset prefers an output directory path, typically ending in .mcds
-OUT_PATH="CG_chunks_mcds.mcds"
+OUT_PATH="/ceph/MethDev/pbio/kay/section4/CG_chunks_mcds.mcds"
 
 # Run the modern command
 allcools generate-dataset \
