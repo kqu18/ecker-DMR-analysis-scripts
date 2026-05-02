@@ -1,6 +1,21 @@
-# Ecker DMR Analysis Scripts
+# Ecker Lab — Gene-Body Methylation × Expression Analysis
 
-Analysis notebooks and scripts for single-cell methylation × RNA expression analysis in *Arabidopsis thaliana* leaf tissue. Identifies genes and differentially methylated windows (DMWs) whose gene-body CG methylation is negatively correlated with expression across 17 cell type clusters.
+Downstream analysis repository for the single-nucleus multi-omic atlas of *Arabidopsis thaliana* rosette leaves (Walker et al., Salk Institute). Identifies genes and differentially methylated windows (DMWs) whose gene-body CG methylation is negatively correlated with RNA expression across 17 cell type clusters.
+
+---
+
+## Scientific Background
+
+This repository supports analysis from a ploidy-resolved single-nucleus atlas of *Arabidopsis* rosette leaves, generated using **snmCT-seq** (single-nucleus methylcytosine and transcriptome sequencing). Nuclei from 21-day long-day rosettes were flow-sorted into ploidy-enriched gates (2C–16C) and profiled for parallel DNA methylation and transcriptome, yielding an atlas of 17 annotated cell types spanning mesophyll, epidermis, vasculature, guard cells, phloem, and cell-cycle states.
+
+**Key findings from the atlas:**
+
+- **Methylation decreases with ploidy** — Global CG, CHG, and CHH methylation levels decline progressively with increasing ploidy in a cell-type- and chromatin-dependent manner.
+- **Transposon activation accompanies methylation loss** — Ploidy-associated and cell-type-specific methylation erosion is linked to increased expression of transposon superfamilies (LTR/Gypsy, LTR/Copia, DNA/MuDR, LINE/L1, etc.).
+- **Phloem companion cells fail to remethylate** — 4C phloem nuclei show near-complete loss of CG methylation compared to 2C counterparts, a failure not seen in other cell types. Single-molecule profiles confirm substantial CG erosion after replication.
+- **Small RNA pathway activity in phloem** — RdDM (RNA-directed DNA methylation) small RNA biogenesis factors are enriched in phloem companion cells, whereas core DNA methylation maintenance machinery shows lower expression, suggesting an alternative methylation maintenance strategy.
+
+**This repository's question:** Within this atlas, which genes show cell-type-specific gene-body CG methylation that is negatively correlated with their RNA expression? Identifying these genes connects the observed epigenomic remodelling to transcriptional regulation across the 17 cluster atlas.
 
 ---
 
