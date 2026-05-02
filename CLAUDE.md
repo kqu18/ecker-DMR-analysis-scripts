@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Commits
+
+Do not include any `Co-Authored-By: Claude` (or other Claude/Anthropic) trailer in commit messages. The author should be the user only.
+
 ## Project Overview
 
 Single-cell methylation × RNA expression analysis for *Arabidopsis thaliana* leaf tissue. The goal is to identify genes (and DMWs — Differentially Methylated Windows) whose gene-body CG methylation is negatively correlated with expression across 17 cell type clusters.
